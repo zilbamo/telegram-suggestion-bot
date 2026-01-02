@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import signal
 from logging.handlers import RotatingFileHandler
 import sys
 
@@ -91,8 +92,33 @@ async def main() -> None:
     logger.info("Роутеры и middlewares подключены")
     logger.info("Запуск polling...")
     
+    # Graceful shutdown
+    loop = asyncio.get_running_loop()
+    shutdown_event = asyncio.Event()
+    
+    def signal_handler():
+        logger.info("Получен сигнал завершения, останавливаем бота...")
+        shutdown_event.set()
+    
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, signal_handler)
+    
     try:
-        await dp.start_polling(bot)
+        polling_task = asyncio.create_task(dp.start_polling(bot))
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+        
+        done, pending = await asyncio.wait(
+            [polling_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+                
     finally:
         await bot.session.close()
         logger.info("Бот остановлен")
