@@ -20,12 +20,12 @@ class AlbumMiddleware(BaseMiddleware):
     Requirements: 2.9
     """
 
-    def __init__(self, latency: float = 0.5) -> None:
+    def __init__(self, latency: float = 1.0) -> None:
         """
         Initialize album middleware.
         
         Args:
-            latency: Seconds to wait for collecting album items (default: 0.5)
+            latency: Seconds to wait for collecting album items (default: 1.0)
         """
         self.latency = latency
         self.albums: dict[str, list[Message]] = {}

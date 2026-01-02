@@ -200,7 +200,7 @@ async def cmd_broadcast(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(BroadcastStates.waiting_content, Command("cancel"))
+@router.message(BroadcastStates.waiting_content, F.text == "/cancel")
 async def broadcast_cancel_content(message: Message, state: FSMContext) -> None:
     """Отмена рассылки на этапе ввода контента."""
     await state.clear()

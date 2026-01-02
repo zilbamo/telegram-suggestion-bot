@@ -80,7 +80,7 @@ async def main() -> None:
     # Порядок важен: сначала ban_check, потом throttling, потом album
     dp.message.middleware(BanCheckMiddleware())
     dp.message.middleware(ThrottlingMiddleware(rate_limit=3.0))
-    dp.message.middleware(AlbumMiddleware(latency=0.5))
+    dp.message.middleware(AlbumMiddleware(latency=1.0))
     
     # Подключение роутеров
     # errors_router первым для перехвата ошибок
