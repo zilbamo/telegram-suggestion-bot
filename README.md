@@ -1,4 +1,4 @@
-# 📬 Предложка / Suggestion Bot
+# 📬 Предложка Telegram Bot / Suggestion Bot
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![aiogram](https://img.shields.io/badge/aiogram-3.x-green.svg)](https://docs.aiogram.dev/)
