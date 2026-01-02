@@ -289,8 +289,8 @@ async def broadcast_send(callback: CallbackQuery, state: FSMContext, bot: Bot) -
             # Другие ошибки (чат не найден и т.д.)
             failed_count += 1
         
-        # Rate limiting: 25 msg/sec = 0.04 sec между сообщениями
-        await asyncio.sleep(0.04)
+        # Rate limiting: 20 msg/sec = 0.05 sec между сообщениями (безопаснее лимитов Telegram)
+        await asyncio.sleep(0.05)
     
     # Статистика по завершении
     await callback.message.edit_text(

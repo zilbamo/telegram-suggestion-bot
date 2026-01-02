@@ -95,11 +95,11 @@ async def set_user_inactive(user_id: int) -> None:
 
 
 async def get_active_users() -> list[User]:
-    """Get all users where is_banned=False (for broadcast)."""
+    """Get all users where is_banned=False AND is_active=True (for broadcast)."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT * FROM users WHERE is_banned = 0"
+            "SELECT * FROM users WHERE is_banned = 0 AND is_active = 1"
         )
         rows = await cursor.fetchall()
         return [

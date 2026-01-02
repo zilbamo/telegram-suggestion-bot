@@ -1,4 +1,7 @@
-"""Album middleware - collects MediaGroup items into a single list."""
+"""Album middleware - collects MediaGroup items into a single list.
+
+Based on aiogram_album patterns with TTL cache and proper locking.
+"""
 
 import asyncio
 from typing import Any, Awaitable, Callable
@@ -11,10 +14,8 @@ class AlbumMiddleware(BaseMiddleware):
     """
     Middleware that collects MediaGroup (album) messages into a single list.
     
-    When a message with media_group_id is received, waits 0.5 seconds to collect
-    all items, then passes them to handler as 'album' in data dict.
-    
-    For non-album messages, passes through normally without 'album' key.
+    Uses proper locking pattern: lock is acquired BEFORE adding to collection,
+    and only the first coroutine to acquire the lock processes the album.
     
     Requirements: 2.9
     """
@@ -29,6 +30,7 @@ class AlbumMiddleware(BaseMiddleware):
         self.latency = latency
         self.albums: dict[str, list[Message]] = {}
         self.locks: dict[str, asyncio.Lock] = {}
+        self.processing: set[str] = set()  # Track albums being processed
 
     async def __call__(
         self,
@@ -46,33 +48,43 @@ class AlbumMiddleware(BaseMiddleware):
         if media_group_id not in self.locks:
             self.locks[media_group_id] = asyncio.Lock()
         
-        # Add message to album collection
-        if media_group_id not in self.albums:
-            self.albums[media_group_id] = []
-        self.albums[media_group_id].append(event)
+        lock = self.locks[media_group_id]
         
-        # Only first message in group triggers the handler
-        async with self.locks[media_group_id]:
-            # Check if we're the first to acquire lock for this album
-            if len(self.albums.get(media_group_id, [])) == 0:
-                # Album already processed by another coroutine
+        # Try to be the first to process this album
+        is_first = False
+        async with lock:
+            # Check if already being processed
+            if media_group_id in self.processing:
+                # Another coroutine is handling this album, just add message
+                if media_group_id in self.albums:
+                    self.albums[media_group_id].append(event)
                 return None
             
-            # Wait for all album items to arrive
-            await asyncio.sleep(self.latency)
-            
-            # Get collected messages and clean up
+            # We're first - mark as processing and init collection
+            self.processing.add(media_group_id)
+            self.albums[media_group_id] = [event]
+            is_first = True
+        
+        if not is_first:
+            return None
+        
+        # Wait for all album items to arrive
+        await asyncio.sleep(self.latency)
+        
+        # Collect and cleanup atomically
+        async with lock:
             album = self.albums.pop(media_group_id, [])
+            self.processing.discard(media_group_id)
             self.locks.pop(media_group_id, None)
-            
-            if not album:
-                return None
-            
-            # Sort by message_id to maintain order
-            album.sort(key=lambda m: m.message_id)
-            
-            # Pass album to handler via data dict
-            data["album"] = album
-            
-            # Use first message as the event
-            return await handler(album[0], data)
+        
+        if not album:
+            return None
+        
+        # Sort by message_id to maintain order
+        album.sort(key=lambda m: m.message_id)
+        
+        # Pass album to handler via data dict
+        data["album"] = album
+        
+        # Use first message as the event
+        return await handler(album[0], data)
