@@ -70,15 +70,12 @@ async def handle_text(message: Message, bot: Bot) -> None:
     await message.answer(SUBMISSION_SENT)
 
 
-@router.message(F.photo)
+@router.message(F.photo, ~F.media_group_id)
 async def handle_photo(message: Message, bot: Bot) -> None:
-    """Обработка фото.
+    """Обработка одиночного фото (не альбом).
     
     Requirements: 2.2, 2.10, 4.1-4.4
     """
-    # Альбомы обрабатываются отдельно через AlbumMiddleware
-    if message.media_group_id:
-        return
     
     user = message.from_user
     if not user:
@@ -109,14 +106,12 @@ async def handle_photo(message: Message, bot: Bot) -> None:
     await message.answer(SUBMISSION_SENT)
 
 
-@router.message(F.video)
+@router.message(F.video, ~F.media_group_id)
 async def handle_video(message: Message, bot: Bot) -> None:
-    """Обработка видео.
+    """Обработка одиночного видео (не альбом).
     
     Requirements: 2.3, 2.10, 4.1-4.4
     """
-    if message.media_group_id:
-        return
     
     user = message.from_user
     if not user:
@@ -187,7 +182,7 @@ async def handle_video_note(message: Message, bot: Bot) -> None:
     )
     
     # video_note не поддерживает caption, отправляем текст отдельно
-    await bot.send_message(
+    caption_msg = await bot.send_message(
         chat_id=config.admin_group_id,
         text=caption,
         parse_mode="HTML",
@@ -196,20 +191,22 @@ async def handle_video_note(message: Message, bot: Bot) -> None:
     await bot.send_video_note(
         chat_id=config.admin_group_id,
         video_note=message.video_note.file_id,
-        reply_markup=get_submission_kb(user.id),
+        reply_markup=get_submission_kb(
+            user_id=user.id,
+            first_msg_id=caption_msg.message_id,
+            last_msg_id=caption_msg.message_id
+        ),
     )
     
     await message.answer(SUBMISSION_SENT)
 
 
-@router.message(F.document)
+@router.message(F.document, ~F.media_group_id)
 async def handle_document(message: Message, bot: Bot) -> None:
-    """Обработка документов.
+    """Обработка одиночного документа (не альбом).
     
     Requirements: 2.6, 2.10, 4.1-4.4
     """
-    if message.media_group_id:
-        return
     
     user = message.from_user
     if not user:
@@ -253,7 +250,7 @@ async def handle_location(message: Message, bot: Bot) -> None:
     )
     
     # location не поддерживает caption, отправляем текст отдельно
-    await bot.send_message(
+    caption_msg = await bot.send_message(
         chat_id=config.admin_group_id,
         text=caption,
         parse_mode="HTML",
@@ -263,7 +260,11 @@ async def handle_location(message: Message, bot: Bot) -> None:
         chat_id=config.admin_group_id,
         latitude=message.location.latitude,
         longitude=message.location.longitude,
-        reply_markup=get_submission_kb(user.id),
+        reply_markup=get_submission_kb(
+            user_id=user.id,
+            first_msg_id=caption_msg.message_id,
+            last_msg_id=caption_msg.message_id
+        ),
     )
     
     await message.answer(SUBMISSION_SENT)
@@ -286,7 +287,7 @@ async def handle_contact(message: Message, bot: Bot) -> None:
     )
     
     # contact не поддерживает caption, отправляем текст отдельно
-    await bot.send_message(
+    caption_msg = await bot.send_message(
         chat_id=config.admin_group_id,
         text=caption,
         parse_mode="HTML",
@@ -297,7 +298,11 @@ async def handle_contact(message: Message, bot: Bot) -> None:
         phone_number=message.contact.phone_number,
         first_name=message.contact.first_name,
         last_name=message.contact.last_name,
-        reply_markup=get_submission_kb(user.id),
+        reply_markup=get_submission_kb(
+            user_id=user.id,
+            first_msg_id=caption_msg.message_id,
+            last_msg_id=caption_msg.message_id
+        ),
     )
     
     await message.answer(SUBMISSION_SENT)
@@ -372,12 +377,17 @@ async def handle_album(message: Message, bot: Bot, album: list[Message] | None =
     # Клавиатура только на последнем сообщении альбома (Requirement 4.5)
     # send_media_group не поддерживает reply_markup, отправляем отдельно
     if sent_messages:
+        first_msg = sent_messages[0]
         last_msg = sent_messages[-1]
         await bot.send_message(
             chat_id=config.admin_group_id,
             text="⬆️ Альбом выше",
             reply_to_message_id=last_msg.message_id,
-            reply_markup=get_submission_kb(user.id),
+            reply_markup=get_submission_kb(
+                user_id=user.id,
+                first_msg_id=first_msg.message_id,
+                last_msg_id=last_msg.message_id
+            ),
         )
     
     await message.answer(SUBMISSION_SENT)

@@ -56,17 +56,28 @@ async def handle_take(callback: CallbackQuery, callback_data: SubmissionAction) 
 
 
 @router.callback_query(SubmissionAction.filter(F.action == "delete"))
-async def handle_delete(callback: CallbackQuery, callback_data: SubmissionAction) -> None:
+async def handle_delete(callback: CallbackQuery, callback_data: SubmissionAction, bot: Bot) -> None:
     """Обработка кнопки «Удалить».
     
     - Удаляет сообщение из админ-группы
+    - Для альбомов удаляет все сообщения альбома
     
     Requirements: 6.1
     """
+    chat_id = callback.message.chat.id
+    
+    # Удаляем альбом если есть
+    if callback_data.first_msg_id and callback_data.last_msg_id:
+        for msg_id in range(callback_data.first_msg_id, callback_data.last_msg_id + 1):
+            try:
+                await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+            except TelegramBadRequest:
+                pass
+    
+    # Удаляем сообщение с кнопками
     try:
         await callback.message.delete()
     except TelegramBadRequest:
-        # Сообщение уже удалено
         await callback.answer("Сообщение уже удалено")
         return
     
@@ -74,7 +85,7 @@ async def handle_delete(callback: CallbackQuery, callback_data: SubmissionAction
 
 
 @router.callback_query(SubmissionAction.filter(F.action == "ban"))
-async def handle_ban(callback: CallbackQuery, callback_data: SubmissionAction) -> None:
+async def handle_ban(callback: CallbackQuery, callback_data: SubmissionAction, bot: Bot) -> None:
     """Обработка кнопки «БАН».
     
     - Устанавливает is_banned=True в БД
@@ -84,11 +95,20 @@ async def handle_ban(callback: CallbackQuery, callback_data: SubmissionAction) -
     Requirements: 7.1, 7.2, 7.3, 7.4
     """
     user_id = callback_data.user_id
+    chat_id = callback.message.chat.id
     
     # Баним пользователя в БД
     await db.ban_user(user_id)
     
-    # Удаляем сообщение заявки
+    # Удаляем альбом если есть
+    if callback_data.first_msg_id and callback_data.last_msg_id:
+        for msg_id in range(callback_data.first_msg_id, callback_data.last_msg_id + 1):
+            try:
+                await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+            except TelegramBadRequest:
+                pass
+    
+    # Удаляем сообщение с кнопками
     try:
         await callback.message.delete()
     except TelegramBadRequest:

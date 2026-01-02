@@ -59,6 +59,10 @@ class ThrottlingMiddleware(BaseMiddleware):
         event: Message,
         data: dict[str, Any],
     ) -> Any:
+        # Skip throttling for media groups (albums) - they come as multiple messages
+        if event.media_group_id:
+            return await handler(event, data)
+        
         user_id = event.from_user.id if event.from_user else None
         
         if user_id is None:

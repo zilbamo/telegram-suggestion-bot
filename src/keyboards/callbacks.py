@@ -9,9 +9,13 @@ class SubmissionAction(CallbackData, prefix="sub"):
     Attributes:
         action: Действие (take, delete, ban, reply)
         user_id: ID пользователя-автора заявки
+        first_msg_id: ID первого сообщения альбома (0 если не альбом)
+        last_msg_id: ID последнего сообщения альбома (0 если не альбом)
     """
     action: str
     user_id: int
+    first_msg_id: int = 0
+    last_msg_id: int = 0
 
 
 class BroadcastAction(CallbackData, prefix="bc"):
