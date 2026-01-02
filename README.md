@@ -48,8 +48,8 @@ predlo-bot/
 ### 1. Клонирование
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/predlo-bot.git
-cd predlo-bot
+git clone https://github.com/zilbamo/telegram-suggestion-bot.git
+cd telegram-suggestion-bot
 ```
 
 ### 2. Виртуальное окружение
