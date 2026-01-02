@@ -28,7 +28,7 @@
 ## 📁 Структура проекта
 
 ```
-predlo-bot/
+telegram-suggestion-bot/
 ├── src/
 │   ├── handlers/       # Обработчики команд и сообщений
 │   ├── keyboards/      # Inline-клавиатуры
@@ -93,19 +93,19 @@ python -m src.main
 ### Systemd сервис
 
 ```bash
-sudo nano /etc/systemd/system/predlo-bot.service
+sudo nano /etc/systemd/system/suggestion-bot.service
 ```
 
 ```ini
 [Unit]
-Description=Predlo Telegram Bot
+Description=Telegram Suggestion Bot
 After=network.target
 
 [Service]
 Type=simple
 User=YOUR_USER
-WorkingDirectory=/home/YOUR_USER/predlo-bot
-ExecStart=/home/YOUR_USER/predlo-bot/venv/bin/python -m src.main
+WorkingDirectory=/home/YOUR_USER/telegram-suggestion-bot
+ExecStart=/home/YOUR_USER/telegram-suggestion-bot/venv/bin/python -m src.main
 Restart=always
 RestartSec=5
 
@@ -117,12 +117,12 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload        # Перечитать конфиги
-sudo systemctl enable predlo-bot    # Автозапуск
-sudo systemctl start predlo-bot     # Запустить
-sudo systemctl stop predlo-bot      # Остановить
-sudo systemctl restart predlo-bot   # Перезапустить
-sudo systemctl status predlo-bot    # Статус
-journalctl -u predlo-bot -f         # Логи
+sudo systemctl enable suggestion-bot    # Автозапуск
+sudo systemctl start suggestion-bot     # Запустить
+sudo systemctl stop suggestion-bot      # Остановить
+sudo systemctl restart suggestion-bot   # Перезапустить
+sudo systemctl status suggestion-bot    # Статус
+journalctl -u suggestion-bot -f         # Логи
 ```
 
 ## 📖 Использование
