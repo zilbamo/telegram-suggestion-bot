@@ -25,3 +25,12 @@ class BroadcastAction(CallbackData, prefix="bc"):
         action: Действие (send, cancel)
     """
     action: str
+
+
+class AdminAction(CallbackData, prefix="adm"):
+    """Callback для админ-панели.
+    
+    Attributes:
+        action: Действие (menu, stats, broadcast, unban, admins, cancel)
+    """
+    action: str

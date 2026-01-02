@@ -113,3 +113,53 @@ async def get_active_users() -> list[User]:
             )
             for row in rows
         ]
+
+
+async def get_stats() -> dict:
+    """Get user statistics for admin panel."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Total users
+        cursor = await db.execute("SELECT COUNT(*) FROM users")
+        total = (await cursor.fetchone())[0]
+        
+        # Active users
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users WHERE is_active = 1 AND is_banned = 0"
+        )
+        active = (await cursor.fetchone())[0]
+        
+        # Banned users
+        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE is_banned = 1")
+        banned = (await cursor.fetchone())[0]
+        
+        # Inactive users (blocked bot)
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users WHERE is_active = 0 AND is_banned = 0"
+        )
+        inactive = (await cursor.fetchone())[0]
+        
+        return {
+            "total": total,
+            "active": active,
+            "banned": banned,
+            "inactive": inactive,
+        }
+
+
+async def unban_user(user_id: int) -> bool:
+    """Unban user by ID. Returns True if user was found and unbanned."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT is_banned FROM users WHERE user_id = ?",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return False
+        
+        await db.execute(
+            "UPDATE users SET is_banned = 0 WHERE user_id = ?",
+            (user_id,),
+        )
+        await db.commit()
+        return True

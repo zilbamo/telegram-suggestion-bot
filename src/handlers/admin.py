@@ -4,18 +4,174 @@ import asyncio
 
 from aiogram import Bot, Router, F
 from aiogram.types import CallbackQuery, Message
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
-from src.keyboards.callbacks import SubmissionAction, BroadcastAction
+from src.keyboards.callbacks import SubmissionAction, BroadcastAction, AdminAction
 from src.keyboards.inline import get_broadcast_confirm_kb
+from src.keyboards.admin import get_admin_menu_kb, get_back_to_admin_kb, get_cancel_kb
 from src.database import requests as db
 from src.states.reply import ReplyStates
 from src.states.broadcast import BroadcastStates
+from src.states.admin import AdminStates
 from src.config import config
 
 router = Router(name="admin")
+
+
+# ==================== ADMIN PANEL ====================
+
+
+@router.message(Command("admin"))
+async def cmd_admin(message: Message, state: FSMContext) -> None:
+    """Команда /admin - открытие админ-панели.
+    
+    Доступна только для admin_ids в личке бота.
+    """
+    if message.from_user.id not in config.admin_ids:
+        return
+    
+    # Только в личке
+    if message.chat.type != "private":
+        await message.answer("⚠️ Админ-панель доступна только в личных сообщениях")
+        return
+    
+    await state.clear()
+    await message.answer(
+        "🔐 <b>Админ-панель</b>\n\nВыберите действие:",
+        reply_markup=get_admin_menu_kb()
+    )
+
+
+@router.callback_query(AdminAction.filter(F.action == "menu"))
+async def admin_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    """Возврат в главное меню админ-панели."""
+    if callback.from_user.id not in config.admin_ids:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    
+    await state.clear()
+    await callback.message.edit_text(
+        "🔐 <b>Админ-панель</b>\n\nВыберите действие:",
+        reply_markup=get_admin_menu_kb()
+    )
+    await callback.answer()
+
+
+@router.callback_query(AdminAction.filter(F.action == "stats"))
+async def admin_stats(callback: CallbackQuery) -> None:
+    """Показать статистику."""
+    if callback.from_user.id not in config.admin_ids:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    
+    stats = await db.get_stats()
+    
+    text = (
+        "📊 <b>Статистика</b>\n\n"
+        f"👥 Всего пользователей: <b>{stats['total']}</b>\n"
+        f"✅ Активных: <b>{stats['active']}</b>\n"
+        f"🚫 Забанено: <b>{stats['banned']}</b>\n"
+        f"💤 Неактивных (заблокировали бота): <b>{stats['inactive']}</b>"
+    )
+    
+    await callback.message.edit_text(text, reply_markup=get_back_to_admin_kb())
+    await callback.answer()
+
+
+@router.callback_query(AdminAction.filter(F.action == "broadcast"))
+async def admin_broadcast(callback: CallbackQuery, state: FSMContext) -> None:
+    """Запуск рассылки из админ-панели."""
+    if callback.from_user.id not in config.admin_ids:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    
+    await state.set_state(BroadcastStates.waiting_content)
+    await callback.message.edit_text(
+        "📢 <b>Рассылка</b>\n\n"
+        "Отправьте контент для рассылки (текст, фото, видео и т.д.).",
+        reply_markup=get_cancel_kb()
+    )
+    await callback.answer()
+
+
+@router.callback_query(AdminAction.filter(F.action == "unban"))
+async def admin_unban(callback: CallbackQuery, state: FSMContext) -> None:
+    """Запуск процесса разбана."""
+    if callback.from_user.id not in config.admin_ids:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    
+    await state.set_state(AdminStates.waiting_unban_id)
+    await callback.message.edit_text(
+        "🔓 <b>Разбан пользователя</b>\n\n"
+        "Отправьте ID пользователя для разбана:",
+        reply_markup=get_cancel_kb()
+    )
+    await callback.answer()
+
+
+@router.message(AdminStates.waiting_unban_id, F.text)
+async def process_unban(message: Message, state: FSMContext) -> None:
+    """Обработка ID для разбана."""
+    if message.from_user.id not in config.admin_ids:
+        return
+    
+    try:
+        user_id = int(message.text.strip())
+    except ValueError:
+        await message.answer(
+            "❌ Неверный формат ID. Отправьте число.",
+            reply_markup=get_cancel_kb()
+        )
+        return
+    
+    success = await db.unban_user(user_id)
+    await state.clear()
+    
+    if success:
+        await message.answer(
+            f"✅ Пользователь <code>{user_id}</code> разбанен",
+            reply_markup=get_back_to_admin_kb()
+        )
+    else:
+        await message.answer(
+            f"❌ Пользователь <code>{user_id}</code> не найден",
+            reply_markup=get_back_to_admin_kb()
+        )
+
+
+@router.callback_query(AdminAction.filter(F.action == "admins"))
+async def admin_list(callback: CallbackQuery) -> None:
+    """Показать список админов."""
+    if callback.from_user.id not in config.admin_ids:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    
+    admin_list_text = "\n".join(f"• <code>{aid}</code>" for aid in config.admin_ids)
+    
+    await callback.message.edit_text(
+        f"👥 <b>Список админов</b>\n\n{admin_list_text}\n\n"
+        f"<i>Редактируется в .env (ADMIN_IDS)</i>",
+        reply_markup=get_back_to_admin_kb()
+    )
+    await callback.answer()
+
+
+@router.callback_query(AdminAction.filter(F.action == "cancel"))
+async def admin_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    """Отмена текущего действия и возврат в меню."""
+    if callback.from_user.id not in config.admin_ids:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    
+    await state.clear()
+    await callback.message.edit_text(
+        "🔐 <b>Админ-панель</b>\n\nВыберите действие:",
+        reply_markup=get_admin_menu_kb()
+    )
+    await callback.answer("Отменено")
 
 
 @router.callback_query(SubmissionAction.filter(F.action == "take"))
@@ -224,7 +380,15 @@ async def cmd_broadcast(message: Message, state: FSMContext) -> None:
 async def broadcast_cancel_content(message: Message, state: FSMContext) -> None:
     """Отмена рассылки на этапе ввода контента."""
     await state.clear()
-    await message.answer("❌ Рассылка отменена")
+    
+    # Если в личке — возвращаем в админ-меню
+    if message.chat.type == "private" and message.from_user.id in config.admin_ids:
+        await message.answer(
+            "🔐 <b>Админ-панель</b>\n\nВыберите действие:",
+            reply_markup=get_admin_menu_kb()
+        )
+    else:
+        await message.answer("❌ Рассылка отменена")
 
 
 @router.message(BroadcastStates.waiting_content)
